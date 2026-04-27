@@ -72,7 +72,7 @@
     panel = createPanel();
 
     const mountPoint = ensureDetailMountPoint();
-    mountPoint.appendChild(panel);
+    mountPoint.insertBefore(panel, mountPoint.firstChild);
     return panel;
   }
 

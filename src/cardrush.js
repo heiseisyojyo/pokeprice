@@ -27,8 +27,8 @@
     /状態A(?!-)/i
   ];
 
-  const SOLDOUT_PATTERNS = [/売り切れ/i, /品切れ/i, /在庫なし/i];
-  const INSTOCK_PATTERNS = [/在庫あり/i, /カートに入れる/i];
+  const SOLDOUT_PATTERNS = [/売り切れ/i, /品切れ/i, /在庫なし/i, /sold\s*out/i];
+  const INSTOCK_PATTERNS = [/在庫あり/i, /カートに入れる/i, /購入する/i];
 
   const inflightMap = new Map();
   let debounceTimer = null;
@@ -80,11 +80,69 @@
     return labels.find((x) => t.includes(x)) || "";
   }
 
-  function detectStock(text) {
+  function detectStock(text, block) {
     const t = normalizeText(text);
     if (SOLDOUT_PATTERNS.some((p) => p.test(t))) return { inStock: false, stockStatus: "在庫なし" };
     if (INSTOCK_PATTERNS.some((p) => p.test(t))) return { inStock: true, stockStatus: "在庫あり" };
-    return { inStock: true, stockStatus: "在庫不明" };
+
+    // 结构兜底：disabled / sold out class 常见于电商模板
+    const stockEl = block?.querySelector?.(".detail_section.stock, .stock");
+    const stockClass = normalizeText(stockEl?.className || "");
+    const stockText = normalizeText(stockEl?.textContent || "");
+    if (/soldout|sold-out/i.test(stockClass) || /^×$/.test(stockText)) {
+      return { inStock: false, stockStatus: "在庫なし" };
+    }
+    if (/在庫数\s*\d+\s*枚/i.test(stockText)) {
+      return { inStock: true, stockStatus: stockText };
+    }
+
+    const actionEl = block?.querySelector?.(
+      'button, .cart, .add-to-cart, .ec-blockBtn--action, .ec-productRole__btn'
+    );
+    const classText = normalizeText(actionEl?.className || "");
+    const disabledAttr =
+      actionEl?.getAttribute?.("disabled") != null ||
+      actionEl?.getAttribute?.("aria-disabled") === "true";
+    if (disabledAttr || /disabled|soldout|sold-out/i.test(classText)) {
+      return { inStock: false, stockStatus: "在庫なし" };
+    }
+
+    return { inStock: false, stockStatus: "在庫確認不可" };
+  }
+
+  function detectStockFromDetailHtml(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const detailStockEl = doc.querySelector(".detail_section.stock, .stock");
+    const detailStockClass = normalizeText(detailStockEl?.className || "");
+    const detailStockText = normalizeText(detailStockEl?.textContent || "");
+    if (/soldout|sold-out/i.test(detailStockClass) || /^×$/.test(detailStockText)) {
+      return { inStock: false, stockStatus: "在庫なし" };
+    }
+    if (/在庫数\s*\d+\s*枚/i.test(detailStockText)) {
+      return { inStock: true, stockStatus: detailStockText };
+    }
+
+    const pageText = normalizeText(doc.body?.textContent || "");
+    if (SOLDOUT_PATTERNS.some((p) => p.test(pageText))) {
+      return { inStock: false, stockStatus: "在庫なし" };
+    }
+
+    const actionEl = doc.querySelector(
+      'button, input[type="submit"], .cart, .add-to-cart, .ec-productRole__btn, .ec-blockBtn--action'
+    );
+    const actionText = normalizeText(actionEl?.textContent || actionEl?.value || "");
+    const classText = normalizeText(actionEl?.className || "");
+    const disabledAttr =
+      actionEl?.getAttribute?.("disabled") != null ||
+      actionEl?.getAttribute?.("aria-disabled") === "true";
+
+    if (disabledAttr || /disabled|soldout|sold-out/i.test(classText)) {
+      return { inStock: false, stockStatus: "在庫なし" };
+    }
+    if (INSTOCK_PATTERNS.some((p) => p.test(actionText)) || /cart|add/i.test(classText)) {
+      return { inStock: true, stockStatus: "在庫あり" };
+    }
+    return { inStock: false, stockStatus: "在庫確認不可" };
   }
 
   function detectRarity(title) {
@@ -117,7 +175,7 @@
     return bg.text;
   }
 
-  function parseListPage(html) {
+  function parseListPage(html, cardName) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     const items = [];
 
@@ -130,10 +188,12 @@
       if (!title) continue;
 
       const combinedText = normalizeText(block?.textContent || title);
+      if (!isLikelySameCard(cardName, title, combinedText)) continue;
+
       const priceInfo = parsePrice(combinedText);
       if (priceInfo.price === null && !/円/.test(combinedText)) continue;
 
-      const stock = detectStock(combinedText);
+      const stock = detectStock(combinedText, block);
       const { condition, rank } = detectCondition(title + " " + combinedText);
       const rarity = detectRarity(title);
 
@@ -153,7 +213,35 @@
       });
     }
 
-    return dedupeAndAggregate(items);
+    return dedupeAndAggregate(items, cardName);
+  }
+
+  function simplifyForMatch(text) {
+    return normalizeText(text)
+      .toLowerCase()
+      .replace(/[【】\[\]（）()「」『』]/g, " ")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function buildNameTokens(cardName) {
+    const s = simplifyForMatch(cardName);
+    if (!s) return [];
+    return s
+      .split(" ")
+      .filter((x) => x.length >= 2)
+      .slice(0, 4);
+  }
+
+  function isLikelySameCard(cardName, title, fullText) {
+    const tokens = buildNameTokens(cardName);
+    if (!tokens.length) return true;
+
+    const hay = `${simplifyForMatch(title)} ${simplifyForMatch(fullText)}`;
+    const hit = tokens.filter((t) => hay.includes(t)).length;
+    // 至少命中一半 token，避免同名前后缀误匹配
+    return hit >= Math.ceil(tokens.length / 2);
   }
 
   function scoreItem(item, cardName) {
@@ -168,7 +256,7 @@
     return score;
   }
 
-  function dedupeAndAggregate(items) {
+  function dedupeAndAggregate(items, cardName) {
     const byRarity = new Map();
 
     for (const item of items) {
@@ -179,8 +267,8 @@
     const result = [];
     for (const [rarity, list] of byRarity.entries()) {
       list.sort((a, b) => {
-        const sa = scoreItem(a, "");
-        const sb = scoreItem(b, "");
+        const sa = scoreItem(a, cardName);
+        const sb = scoreItem(b, cardName);
         if (sb !== sa) return sb - sa;
         const pa = a.price ?? Number.MAX_SAFE_INTEGER;
         const pb = b.price ?? Number.MAX_SAFE_INTEGER;
@@ -197,6 +285,21 @@
     });
 
     return result;
+  }
+
+  async function enhanceUnknownStock(items) {
+    const unknownItems = items.filter((it) => it.stockStatus === "在庫確認不可" && it.url);
+    for (const item of unknownItems.slice(0, 6)) {
+      try {
+        const html = await fetchHtml(item.url);
+        const stock = detectStockFromDetailHtml(html);
+        item.inStock = stock.inStock;
+        item.stockStatus = stock.stockStatus;
+      } catch (_) {
+        // 保留原有状态
+      }
+    }
+    return items;
   }
 
   async function fetchCardPrices(cardName) {
@@ -216,13 +319,14 @@
         await sleep(50); // gentle rate limit
         const url = makeSearchUrl(name);
         const html = await fetchHtml(url);
-        const items = parseListPage(html);
+        const items = parseListPage(html, name);
 
+        const finalItems = await enhanceUnknownStock(items);
         const data = {
           cardName: name,
           source: "cardrush",
           fetchedAt: Date.now(),
-          items
+          items: finalItems
         };
 
         await window.CardRushCache.set(name, data);
