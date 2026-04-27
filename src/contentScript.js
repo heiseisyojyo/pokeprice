@@ -57,9 +57,9 @@
   function findCardNameNearElement(el) {
     if (!el) return "";
 
-    const detailAnchor = el.matches?.('a[href*="/card-search/details.php"]')
+    const detailAnchor = el.matches?.('a[href*="/card-search/details.php"], a[id^="card-show-id"]')
       ? el
-      : el.querySelector?.('a[href*="/card-search/details.php"]');
+      : el.querySelector?.('a[href*="/card-search/details.php"], a[id^="card-show-id"]');
 
     const titleInCard = el.querySelector?.(".card-list__item-name, .CardName, .cardName, .name, .title");
     const textCandidates = [
@@ -91,9 +91,16 @@
 
     const getHoverTarget = (node) => {
       if (!node) return null;
-      const detailAnchor = node.closest?.("a[href*='/card-search/details.php']");
-      if (!detailAnchor) return null;
-      return detailAnchor.closest("li, .card, .card-item, .result-card") || detailAnchor;
+      const cardAnchor = node.closest?.(
+        "a[href*='/card-search/details.php'], a[id^='card-show-id']"
+      );
+      if (!cardAnchor) return null;
+
+      return (
+        cardAnchor.closest(
+          "li, .card, .card-item, .result-card, .List_item_inner, .List_item"
+        ) || cardAnchor
+      );
     };
 
     document.addEventListener("mouseover", async (ev) => {
