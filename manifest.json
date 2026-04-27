@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Pokemon CardRush Price Overlay",
+  "version": "0.1.0",
+  "description": "在宝可梦官网页面显示 CardRush Pokémon 各版本价格",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.cardrush-pokemon.jp/*",
+    "https://www.pokemon-card.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.pokemon-card.com/*"],
+      "js": ["src/cache.js", "src/cardrush.js", "src/ui.js", "src/contentScript.js"],
+      "css": ["src/styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
