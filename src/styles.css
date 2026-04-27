@@ -1,0 +1,117 @@
+.cr-price-panel,
+.cr-hover-pop {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  color: #222;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+}
+
+.cr-price-panel {
+  margin: 16px 0;
+  padding: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cr-hover-pop {
+  position: fixed;
+  z-index: 999999;
+  width: 400px;
+  max-height: 360px;
+  overflow: auto;
+  display: none;
+  padding: 10px;
+}
+
+.cr-header {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.cr-body {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cr-error {
+  color: #b00020;
+}
+
+.cr-empty {
+  color: #666;
+}
+
+.cr-table-wrap {
+  overflow: auto;
+  max-height: 280px;
+}
+
+.cr-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.cr-table th,
+.cr-table td {
+  border-bottom: 1px solid #eee;
+  padding: 6px;
+  vertical-align: top;
+  font-size: 12px;
+}
+
+.cr-table th {
+  background: #fafafa;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cr-table td.rarity {
+  width: 52px;
+  font-weight: 700;
+  color: #333;
+}
+
+.cr-table td.title {
+  word-break: break-word;
+}
+
+.cr-table td.title a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.cr-table td.title a:hover {
+  text-decoration: underline;
+}
+
+.cr-table td.price {
+  width: 82px;
+  color: #d32f2f;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cr-table td.stock {
+  width: 70px;
+  white-space: nowrap;
+}
+
+.cr-table td.stock.in {
+  color: #2e7d32;
+}
+
+.cr-table td.stock.out {
+  color: #757575;
+}
+
+.cr-cond {
+  color: #8a8a8a;
+  margin-left: 4px;
+  font-size: 11px;
+}
