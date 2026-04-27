@@ -7,7 +7,7 @@
   }
 
   function isSearchPage() {
-    return /\/card-search\/index\.php/i.test(location.pathname);
+    return /\/card-search(?:\/|$)/i.test(location.pathname);
   }
 
   function extractCardNameFromDetail() {
@@ -87,49 +87,52 @@
   }
 
   function bindSearchHover() {
-    const cardNodes = document.querySelectorAll("a[href*='/card-search/details.php']");
-    const bound = new WeakSet();
+    let activeHoverTarget = null;
 
-    const bindOne = (node) => {
-      if (!node || bound.has(node)) return;
-      const hoverTarget = node.closest("li, .card, .card-item, .result-card") || node;
-      if (bound.has(hoverTarget)) return;
-      bound.add(hoverTarget);
-
-      hoverTarget.addEventListener("mouseenter", async (ev) => {
-        const cardName = findCardNameNearElement(hoverTarget);
-        if (!cardName) return;
-
-        UI.showHoverPop(ev.clientX, ev.clientY);
-        UI.setHoverLoading();
-
-        try {
-          const data = await fetchCardPrices(cardName);
-          if (!data?.items?.length) UI.setHoverError("CardRushで該当商品が見つかりませんでした");
-          else UI.setHoverData(data);
-        } catch (err) {
-          UI.setHoverError("価格情報を取得できませんでした");
-          console.warn("[CardRush] hover fetch error:", err);
-        }
-      });
-
-      hoverTarget.addEventListener("mousemove", (ev) => {
-        UI.showHoverPop(ev.clientX, ev.clientY);
-      });
-
-      hoverTarget.addEventListener("mouseleave", () => {
-        UI.scheduleHideHoverPop(400);
-      });
+    const getHoverTarget = (node) => {
+      if (!node) return null;
+      const detailAnchor = node.closest?.("a[href*='/card-search/details.php']");
+      if (!detailAnchor) return null;
+      return detailAnchor.closest("li, .card, .card-item, .result-card") || detailAnchor;
     };
 
-    cardNodes.forEach(bindOne);
+    document.addEventListener("mouseover", async (ev) => {
+      const hoverTarget = getHoverTarget(ev.target);
+      if (!hoverTarget || hoverTarget === activeHoverTarget) return;
+      activeHoverTarget = hoverTarget;
 
-    // 动态列表兼容
-    const mo = new MutationObserver(() => {
-      const nodes = document.querySelectorAll("a[href*='/card-search/details.php']");
-      nodes.forEach(bindOne);
+      const cardName = findCardNameNearElement(hoverTarget);
+      if (!cardName) return;
+
+      UI.showHoverPop(ev.clientX, ev.clientY);
+      UI.setHoverLoading();
+
+      try {
+        const data = await fetchCardPrices(cardName);
+        if (activeHoverTarget !== hoverTarget) return;
+        if (!data?.items?.length) UI.setHoverError("CardRushで該当商品が見つかりませんでした");
+        else UI.setHoverData(data);
+      } catch (err) {
+        if (activeHoverTarget !== hoverTarget) return;
+        UI.setHoverError("価格情報を取得できませんでした");
+        console.warn("[CardRush] hover fetch error:", err);
+      }
     });
-    mo.observe(document.body, { childList: true, subtree: true });
+
+    document.addEventListener("mousemove", (ev) => {
+      const hoverTarget = getHoverTarget(ev.target);
+      if (!hoverTarget) return;
+      UI.showHoverPop(ev.clientX, ev.clientY);
+    });
+
+    document.addEventListener("mouseout", (ev) => {
+      const hoverTarget = getHoverTarget(ev.target);
+      if (!hoverTarget) return;
+      const next = ev.relatedTarget;
+      if (next && hoverTarget.contains(next)) return;
+      if (activeHoverTarget === hoverTarget) activeHoverTarget = null;
+      UI.scheduleHideHoverPop(400);
+    });
   }
 
   async function init() {
