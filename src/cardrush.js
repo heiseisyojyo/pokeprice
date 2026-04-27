@@ -63,6 +63,30 @@
     return { price: Number.isFinite(price) ? price : null, priceText: `${m[1]}円` };
   }
 
+  function extractPriceFromBlock(block) {
+    if (!block) return { price: null, priceText: "-" };
+
+    const selectors = [
+      "#pricech",
+      ".selling_price .figure",
+      ".selling_price",
+      ".price_section .figure",
+      ".price_section",
+      ".detail_section.price .figure",
+      ".detail_section.price"
+    ];
+
+    for (const sel of selectors) {
+      const el = block.querySelector(sel);
+      const txt = normalizeText(el?.textContent || "");
+      if (!txt) continue;
+      const parsed = parsePrice(txt);
+      if (parsed.price != null) return parsed;
+    }
+
+    return { price: null, priceText: "-" };
+  }
+
   function detectCondition(title) {
     const t = normalizeText(title);
     for (const p of BAD_CONDITION_PATTERNS) {
@@ -190,7 +214,10 @@
       const combinedText = normalizeText(block?.textContent || title);
       if (!isLikelySameCard(cardName, title, combinedText)) continue;
 
-      const priceInfo = parsePrice(combinedText);
+      let priceInfo = extractPriceFromBlock(block);
+      if (priceInfo.price == null) {
+        priceInfo = parsePrice(combinedText);
+      }
       if (priceInfo.price === null && !/円/.test(combinedText)) continue;
 
       const stock = detectStock(combinedText, block);
