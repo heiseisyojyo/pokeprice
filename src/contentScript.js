@@ -56,33 +56,48 @@
 
   function findCardNameNearElement(el) {
     if (!el) return "";
+
+    const detailAnchor = el.matches?.('a[href*="/card-search/details.php"]')
+      ? el
+      : el.querySelector?.('a[href*="/card-search/details.php"]');
+
+    const titleInCard = el.querySelector?.(".card-list__item-name, .CardName, .cardName, .name, .title");
     const textCandidates = [
+      detailAnchor?.dataset?.name,
+      detailAnchor?.dataset?.cardName,
+      titleInCard?.textContent,
       el.getAttribute("alt"),
       el.getAttribute("title"),
       el.dataset?.name,
       el.dataset?.cardName,
+      detailAnchor?.querySelector?.("img")?.getAttribute("alt"),
       el.querySelector?.("img")?.getAttribute("alt"),
       el.querySelector?.(".name,.card-name,.title")?.textContent,
-      el.textContent
+      detailAnchor?.textContent
     ];
 
     for (const raw of textCandidates) {
       const t = normalizeText(raw || "");
-      if (t && t.length <= 80) return t;
+      if (!t || t.length > 80) continue;
+      // 排除明显不是卡名的文案
+      if (/詳細|検索|ページ|ポケモンカードゲーム公式ホームページ/i.test(t)) continue;
+      return t;
     }
     return "";
   }
 
   function bindSearchHover() {
-    const cardNodes = document.querySelectorAll("li, .card, .card-item, .result-card, a[href*='/details.php']");
+    const cardNodes = document.querySelectorAll("a[href*='/card-search/details.php']");
     const bound = new WeakSet();
 
     const bindOne = (node) => {
       if (!node || bound.has(node)) return;
-      bound.add(node);
+      const hoverTarget = node.closest("li, .card, .card-item, .result-card") || node;
+      if (bound.has(hoverTarget)) return;
+      bound.add(hoverTarget);
 
-      node.addEventListener("mouseenter", async (ev) => {
-        const cardName = findCardNameNearElement(node);
+      hoverTarget.addEventListener("mouseenter", async (ev) => {
+        const cardName = findCardNameNearElement(hoverTarget);
         if (!cardName) return;
 
         UI.showHoverPop(ev.clientX, ev.clientY);
@@ -98,11 +113,11 @@
         }
       });
 
-      node.addEventListener("mousemove", (ev) => {
+      hoverTarget.addEventListener("mousemove", (ev) => {
         UI.showHoverPop(ev.clientX, ev.clientY);
       });
 
-      node.addEventListener("mouseleave", () => {
+      hoverTarget.addEventListener("mouseleave", () => {
         UI.scheduleHideHoverPop(400);
       });
     };
@@ -111,7 +126,7 @@
 
     // 动态列表兼容
     const mo = new MutationObserver(() => {
-      const nodes = document.querySelectorAll("li, .card, .card-item, .result-card, a[href*='/details.php']");
+      const nodes = document.querySelectorAll("a[href*='/card-search/details.php']");
       nodes.forEach(bindOne);
     });
     mo.observe(document.body, { childList: true, subtree: true });
